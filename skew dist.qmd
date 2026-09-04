@@ -1,0 +1,190 @@
+---
+title: "STAT4027"
+format: html
+editor: visual
+---
+
+# Example
+
+- [AI & Data Science Job Salaries 2026](https://www.kaggle.com/datasets/uditjain13/ai-and-data-science-job-salaries-2026)
+
+```{r}
+library(tidyverse)
+library(sn)
+library(fGarch)
+library(car)
+set_theme(theme_classic())
+data = read.csv('ai_ds_job_salaries_2026.csv')
+```
+
+```{r}
+data %>% str()
+```
+
+```{r}
+ggplot(data = data, aes(x = salary_usd)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 fill = 'skyblue', 
+                 bins = 30)
+```
+
+## Normal fit
+
+```{r}
+mu_norm = mean(data$salary_usd, na.rm = TRUE)
+sd_norm = sd(data$salary_usd, na.rm = TRUE)
+mu_norm; sd_norm
+```
+
+```{r}
+ggplot(data = data, aes(x = salary_usd)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, fill = "skyblue", color = "white") +
+  stat_function(fun = dnorm, 
+                args = list(mean = mu_norm, sd = sd_norm), 
+                color = "red", 
+                linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd)))
+```
+
+## Skew normal fit
+
+```{r}
+fit_sn = selm(salary_usd ~ 1, family = "SN", data = data)
+dp_sn = coef(fit_sn, "DP")
+dp_sn
+```
+
+```{r}
+ggplot(data = data, aes(x = salary_usd)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 fill = "skyblue", 
+                 bins = 30) +
+  stat_function(fun = dsn, 
+                args = list(xi = dp_sn["xi"], 
+                            omega = dp_sn["omega"], 
+                            alpha = dp_sn["alpha"]), 
+                color = "darkgreen", 
+                linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd)))
+```
+
+## Skew student-t fit
+
+```{r}
+fit_st = selm(salary_usd ~ 1, family = "ST", data = data)
+dp_st = coef(fit_st, "DP")
+dp_st
+```
+
+```{r}
+ggplot(data = data, aes(x = salary_usd)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 fill = "skyblue", 
+                 bins = 30) +
+  stat_function(fun = dst, 
+                args = list(xi = dp_st["xi"], 
+                            omega = dp_st["omega"], 
+                            alpha = dp_st["alpha"]), 
+                color = "navy", 
+                linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd)))
+```
+
+## Two-piece normal fit
+
+```{r}
+fit_2norm = snormFit(data$salary_usd)
+dp_2norm = fit_2norm$par
+dp_2norm
+```
+
+```{r}
+ggplot(data = data, aes(x = salary_usd)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 fill = "skyblue", 
+                 bins = 30) +
+  stat_function(fun = dsnorm, 
+                args = list(mean = dp_2norm["mean"], 
+                            sd = dp_2norm["sd"], 
+                            xi = dp_2norm["xi"]), 
+                color = "brown", 
+                linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd)))
+```
+
+## Compare
+
+```{r}
+ggplot(data, aes(x = salary_usd)) +
+  geom_histogram(aes(y = after_stat(density)), fill = "skyblue", bins = 30) +
+  stat_function(aes(color = "Normal"),
+                fun = dnorm,
+                args = list(mean = mu_norm, sd = sd_norm), linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd))) +
+  stat_function(aes(color = "Skew-normal"),
+                fun = dsn,
+                args = list(xi = dp_sn["xi"], omega = dp_sn["omega"], alpha = dp["alpha"]),
+                linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd))) +
+  stat_function(aes(color = 'Skew-t'),
+                fun = dst, 
+                args = list(xi = dp_st["xi"], 
+                            omega = dp_st["omega"], 
+                            alpha = dp_st["alpha"]),
+                linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd))) +
+  stat_function(aes(color = 'Two-piece normal'),
+                fun = dsnorm, 
+                args = list(mean = dp_2norm["mean"], 
+                            sd = dp_2norm["sd"], 
+                            xi = dp_2norm["xi"]), 
+                linewidth = 1,
+                xlim = c(min(data$salary_usd) - 3*sd_norm, 
+                         max(data$salary_usd))) + 
+  scale_color_manual(name = "Fit", values = c("Normal" = "red",
+                                              "Skew-normal" = "darkgreen",
+                                              'Skew-t' = 'navy',
+                                              'Two-piece normal' = 'brown'))
+```
+
+```{r}
+pnorm(0, mean = mu_norm, sd = sd_norm)
+psn(0, xi = dp_sn['xi'], 
+    omega = dp_sn['omega'], 
+    alpha = dp_sn['alpha'])
+```
+
+```{r}
+qnorm(0.5, mean = mu_norm, sd = sd_norm)
+qsn(0.5, xi = dp_sn['xi'],
+    omega = dp_sn['omega'],
+    alpha = dp_sn['alpha'])
+```
+
+```{r}
+qqPlot(data$salary_usd,
+       distribution = "sn",
+       xi = dp_sn["xi"], omega = dp_sn["omega"], alpha = dp_sn["alpha"])
+```
+
+```{r}
+alpha = c(-5, 0, 2)
+curve(dsn(x, alpha = alpha[1]), 
+      from = -3, to = 5, 
+      col = "navy", lwd = 2)
+curve(dsn(x, alpha = alpha[2]), 
+      from = -3, to = 5, 
+      col = "black", lwd = 2,
+      add = TRUE)
+curve(dsn(x, alpha = alpha[3]), 
+      from = -3, to = 5, 
+      col = "darkgreen", lwd = 2, add = TRUE)
+```
